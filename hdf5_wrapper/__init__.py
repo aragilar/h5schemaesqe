@@ -105,6 +105,7 @@ class HDF5WrapperMeta(type):
             return {
                 "_filetype_": filetype,
                 "_fileversions_": {},
+                "_extra_metadata_": {}
             }
         elif version is not None:
             bases = _bases_filetype(bases)
@@ -124,7 +125,7 @@ class HDF5WrapperMeta(type):
         return {}
 
     def __new__(
-        metacls, clsname, bases, attrs, **kwargs
+        metacls, clsname, bases, attrs, filetype=None, version=None, **kwargs
     ):
         if hasattr(attrs, "_schema"):
             schema = {key: attrs._schema[key] for key in attrs._schema}
@@ -141,6 +142,11 @@ class HDF5WrapperMeta(type):
                     single_dataset_types[key] = objtype
                     getter, setter = _file_single_mapper(key, objtype)
                 attrs[key] = property(getter, setter)
+
+        for key, val in kwargs.items():
+            getter, setter = _file_single_mapper(key, type(value))
+            attrs[key] = property(getter, setter)
+            attrs["_extra_metadata_"][key] = val
 
         return super().__new__(metacls, clsname, bases, attrs)
 
@@ -174,6 +180,8 @@ class HDF5Wrapper(metaclass=HDF5WrapperMeta):
             if self._new_file_:
                 self._file_.attrs["version"] = self._version_
                 self._file_.attrs["filetype"] = self._filetype_
+                for key, val in self._extra_metadata_.items():
+                    setattr(self, key, val)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
