@@ -8,7 +8,7 @@ import versioneer
 setuptools.setup(
     name="hdf5_wrapper",
     version=versioneer.get_version(),
-    packages = ["venv_tools"],
+    packages = ["hdf5_wrapper"],
     install_requires = ["h5py", "numpy"],
     author = "James Tocknell",
     author_email = "aragilar@gmail.com",
