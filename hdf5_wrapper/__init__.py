@@ -5,6 +5,7 @@ scripts
 
 from collections import namedtuple
 from collections.abc import Mapping
+from types import SimpleNamespace
 
 from numpy import array, ndarray
 import h5py
@@ -70,10 +71,11 @@ def _file_group_mapper(key, schema, named_tuple):
         if self._file_.get(key) is None:
             self._file_.create_group(key)
         for name, value in vars(mapping).items():
-            if key_schema[name] == ndarray:
-                self._file_[key][name] = value
+            objtype = key_schema[name]
+            if objtype == ndarray:
+                self._file_[key][name] = array(value)
             else:
-                self._file_[key].attrs[name] = value
+                self._file_[key].attrs[name] = objtype(value)
 
     return getter, setter
 
@@ -86,9 +88,9 @@ def _file_single_mapper(key, objtype):
             return objtype(self._file_.attrs[key])
     def setter(self, value):
         if objtype == ndarray:
-            self._file_[key] = value
+            self._file_[key] = array(value)
         else:
-            self._file_.attrs[key] = value
+            self._file_.attrs[key] = objtype(value)
     return getter, setter
 
 
@@ -118,7 +120,7 @@ class HDF5WrapperMeta(type):
                 raise RuntimeError("Version already exists")
             return _HDF5WrapperDict(
                 _filetype_ = base._filetype_,
-                named_tuples = {},
+                named_tuples = SimpleNamespace(),
                 _single_dataset_types_ = {},
                 _version_ = version,
             )
@@ -135,8 +137,11 @@ class HDF5WrapperMeta(type):
             single_dataset_types = attrs["_single_dataset_types_"]
             for key in schema:
                 if isinstance(schema[key], Mapping):
-                    named_tuples[key] = namedtuple(key, list(schema[key]))
-                    getter, setter = _file_group_mapper(key, schema, named_tuples[key])
+                    setattr(
+                        named_tuples, key, namedtuple(key, list(schema[key]))
+                    )
+                    getter, setter = _file_group_mapper(
+                        key, schema, getattr(named_tuples,key))
                 else:
                     objtype = schema[key]
                     single_dataset_types[key] = objtype
@@ -144,7 +149,7 @@ class HDF5WrapperMeta(type):
                 attrs[key] = property(getter, setter)
 
         for key, val in kwargs.items():
-            getter, setter = _file_single_mapper(key, type(value))
+            getter, setter = _file_single_mapper(key, type(val))
             attrs[key] = property(getter, setter)
             attrs["_extra_metadata_"][key] = val
 
@@ -153,7 +158,7 @@ class HDF5WrapperMeta(type):
     def __init__(cls, name, bases, attrs, **kwargs):
         cls_version = kwargs.get("version")
         if cls_version is not None:
-            bases_filetype(bases)[-1]._fileversions_[cls_version] = cls
+            _bases_filetype(bases)[-1]._fileversions_[cls_version] = cls
         super().__init__(name, bases, attrs)
 
 
@@ -203,7 +208,16 @@ class HDF5Wrapper(metaclass=HDF5WrapperMeta):
                         "unknown file version {}".format(version)
                     )
                 return cls._fileversions_[version](filename, **kwargs)
-            return cls._fileversions_[max(cls._fileversions_)](filename, **kwargs)
+            return cls.newest()(filename, **kwargs)
+
+    @classmethod
+    def newest(cls):
+        return cls._fileversions_[max(cls._fileversions_)]
+
+    @classmethod
+    def oldest(cls):
+        return cls._fileversions_[min(cls._fileversions_)]
+
 
     @staticmethod
     def _is_new_file_(f):
