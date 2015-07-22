@@ -167,16 +167,23 @@ class HDF5Wrapper(metaclass=HDF5WrapperMeta):
     _filename_ = None
     _require_close_ = True
     _new_file_ = True
-    def __init__(self, f, **kwargs):
+    def __init__(self, f, _new_file=None **kwargs):
         if isinstance(f, h5py.File):
             self._file_ = f
             self._filename_ = f.filename
             self._require_close_ = False
-            self._new_file_ = self._is_new_file_(f)
+            if _new_file is not None:
+                self._new_file_ = _new_file
+            else:
+                self._new_file_ = self._is_new_file_(f)
         elif hasattr(f, "name"):
             self._filename_ = f.name
+            if _new_file is not None:
+                self._new_file_ = _new_file
         else:
             self._filename_ = f
+            if _new_file is not None:
+                self._new_file_ = _new_file
         self._kwargs_ = kwargs
 
     def __enter__(self):
@@ -207,7 +214,9 @@ class HDF5Wrapper(metaclass=HDF5WrapperMeta):
                     raise RuntimeError(
                         "unknown file version {}".format(version)
                     )
-                return cls._fileversions_[version](filename, **kwargs)
+                return cls._fileversions_[version](
+                    filename, _new_file=False, **kwargs
+                )
             return cls.newest()(filename, **kwargs)
 
     @classmethod
