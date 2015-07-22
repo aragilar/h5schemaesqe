@@ -167,7 +167,7 @@ class HDF5Wrapper(metaclass=HDF5WrapperMeta):
     _filename_ = None
     _require_close_ = True
     _new_file_ = True
-    def __init__(self, f, _new_file=None **kwargs):
+    def __init__(self, f, _new_file=None, **kwargs):
         if isinstance(f, h5py.File):
             self._file_ = f
             self._filename_ = f.filename
