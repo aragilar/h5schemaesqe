@@ -1,264 +1,365 @@
 """
-Wrapper around h5py and hdf5 to manage different versions of output files
-scripts
 """
-
 from collections import namedtuple
-from collections.abc import Mapping
-from types import SimpleNamespace
+from collections.abc import (
+        MutableMapping, MutableSequence, Iterable, Sequence, Mapping
+)
+import numbers
 
-from numpy import array, ndarray
-import h5py
+from numpy import ndarray
 
+NO_ITEM_IN_GROUP = "No item in group called {}"
 
-### From python 3.4 enum ###
-def _is_descriptor(obj):
-    """Returns True if obj is a descriptor, False otherwise."""
-    return (
-            hasattr(obj, '__get__') or
-            hasattr(obj, '__set__') or
-            hasattr(obj, '__delete__'))
-
-
-def _is_dunder(name):
-    """Returns True if a __dunder__ name, False otherwise."""
-    return (name[:2] == name[-2:] == '__' and
-            name[2:3] != '_' and
-            name[-3:-2] != '_' and
-            len(name) > 4)
-
-
-def _is_sunder(name):
-    """Returns True if a _sunder_ name, False otherwise."""
-    return (name[0] == name[-1] == '_' and
-            name[1:2] != '_' and
-            name[-2:-1] != '_' and
-            len(name) > 2)
-
-
-class _HDF5WrapperDict(dict):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._schema = {}
-    def __setitem__(self, key, value):
-        if _is_sunder(key):
-            raise ValueError('_names_ are reserved')
-        elif _is_dunder(key):
-            pass
-        elif not _is_descriptor(value):
-            self._schema[key] = value
-        super().__setitem__(key, value)
-
-
-def _bases_filetype(bases):
-    return [
-        base for base in bases
-        if hasattr(base, "_filetype_") and base._filetype_ is not None
-    ]
-
-def _file_group_mapper(key, schema, named_tuple):
-    key_schema = schema[key]
-    def getter(self):
-        converted_values = {}
-        for name, objtype in key_schema.items():
-            if objtype == ndarray:
-                converted_values[name] = array(self._file_[key][name])
-            else:
-                converted_values[name] = objtype(self._file_[key].attrs[name])
-        return named_tuple(**converted_values)
-
-    def setter(self, mapping):
-        if self._file_.get(key) is None:
-            self._file_.create_group(key)
-        for name, value in vars(mapping).items():
-            objtype = key_schema[name]
-            if objtype == ndarray:
-                self._file_[key][name] = array(value)
-            else:
-                self._file_[key].attrs[name] = objtype(value)
-
-    return getter, setter
-
-
-def _file_single_mapper(key, objtype):
-    def getter(self):
-        if objtype == ndarray:
-            return array(self._file_[key])
-        else:
-            return objtype(self._file_.attrs[key])
-    def setter(self, value):
-        if objtype == ndarray:
-            self._file_[key] = array(value)
-        else:
-            self._file_.attrs[key] = objtype(value)
-    return getter, setter
-
-
-class HDF5WrapperMeta(type):
-    """
-    Base class for hdf5 wrappers
-    """
-    @classmethod
-    def __prepare__(
-        metacls, clsname, bases, filetype=None, version=None,
-        **kwargs
-    ):
-        if filetype is not None:
-            return {
-                "_filetype_": filetype,
-                "_fileversions_": {},
-                "_extra_metadata_": {}
-            }
-        elif version is not None:
-            bases = _bases_filetype(bases)
-            if not bases:
-                raise RuntimeError("Need to subclass from a base filetype")
-            elif len(bases) > 1:
-                raise RuntimeError("Too many mixed filetypes")
-            base = bases[0]
-            if version in base._fileversions_:
-                raise RuntimeError("Version already exists")
-            return _HDF5WrapperDict(
-                _filetype_ = base._filetype_,
-                named_tuples = SimpleNamespace(),
-                _single_dataset_types_ = {},
-                _version_ = version,
-            )
-        return {}
-
-    def __new__(
-        metacls, clsname, bases, attrs, filetype=None, version=None, **kwargs
-    ):
-        if hasattr(attrs, "_schema"):
-            schema = {key: attrs._schema[key] for key in attrs._schema}
-            for key in attrs._schema:
-                del attrs[key]
-            named_tuples = attrs["named_tuples"]
-            single_dataset_types = attrs["_single_dataset_types_"]
-            for key in schema:
-                if isinstance(schema[key], Mapping):
-                    setattr(
-                        named_tuples, key, namedtuple(key, list(schema[key]))
-                    )
-                    getter, setter = _file_group_mapper(
-                        key, schema, getattr(named_tuples,key))
-                else:
-                    objtype = schema[key]
-                    single_dataset_types[key] = objtype
-                    getter, setter = _file_single_mapper(key, objtype)
-                attrs[key] = property(getter, setter)
-
-        for key, val in kwargs.items():
-            getter, setter = _file_single_mapper(key, type(val))
-            attrs[key] = property(getter, setter)
-            attrs["_extra_metadata_"][key] = val
-
-        return super().__new__(metacls, clsname, bases, attrs)
-
-    def __init__(cls, name, bases, attrs, **kwargs):
-        cls_version = kwargs.get("version")
-        if cls_version is not None:
-            _bases_filetype(bases)[-1]._fileversions_[cls_version] = cls
-        super().__init__(name, bases, attrs)
-
-
-class HDF5Wrapper(metaclass=HDF5WrapperMeta):
-    _file_ = None
-    _filename_ = None
-    _require_close_ = True
-    _new_file_ = True
-    def __init__(self, f, _new_file=None, **kwargs):
-        if isinstance(f, h5py.File):
-            self._file_ = f
-            self._filename_ = f.filename
-            self._require_close_ = False
-            if _new_file is not None:
-                self._new_file_ = _new_file
-            else:
-                self._new_file_ = self._is_new_file_(f)
-        elif hasattr(f, "name"):
-            self._filename_ = f.name
-            if _new_file is not None:
-                self._new_file_ = _new_file
-        else:
-            self._filename_ = f
-            if _new_file is not None:
-                self._new_file_ = _new_file
-        self._kwargs_ = kwargs
-
-    def __enter__(self):
-        if self._file_ is None:
-            self._file_ = h5py.File(self._filename_, **self._kwargs_)
-            if self._new_file_:
-                self._file_.attrs["version"] = self._version_
-                self._file_.attrs["filetype"] = self._filetype_
-                for key, val in self._extra_metadata_.items():
-                    setattr(self, key, val)
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if self._require_close_:
-            return self._file_.__exit__(exc_type, exc_value, traceback)
-        return False  # Don't handle any exceptions
-
-    @classmethod
-    def open(cls, filename, **kwargs):
-        with h5py.File(filename) as f:
-            if not cls._is_new_file_(f):
-                if not cls._filetype_ == f.attrs["filetype"]:
-                    raise RuntimeError(
-                        "file is not of type {}".format(cls._filetype_)
-                    )
-                version = f.attrs["version"]
-                if version not in cls._fileversions_:
-                    raise RuntimeError(
-                        "unknown file version {}".format(version)
-                    )
-                return cls._fileversions_[version](
-                    filename, _new_file=False, **kwargs
-                )
-            return cls.newest()(filename, **kwargs)
-
-    @classmethod
-    def newest(cls):
-        return cls._fileversions_[max(cls._fileversions_)]
-
-    @classmethod
-    def oldest(cls):
-        return cls._fileversions_[min(cls._fileversions_)]
-
-
-    @staticmethod
-    def _is_new_file_(f):
-        """
-        Check if `f` is an empty/new hdf5 file
-        """
-        if not f.attrs.keys() and not f.keys():
-            return True
+def valid_index(index, length):
+    if index >=length:
         return False
+    if index < - length:
+        return False
+    return True
+
+
+class HDF5GroupBase:
+    def __init__(
+        self, group_name, group_mapping, parent=None, hdf5_file=None,
+        inherit_namedtuple=False
+    ):
+        if parent is None and hdf5_file is None:
+            raise RuntimeError("Not bound to an hdf5 file")
+
+        self._name = group_name
+        self._parent = parent
+        self._hdf5_file = hdf5_file or self._parent._hdf5_file
+        self._group_mapping = group_mapping
+
+        self._set_named_tuple(inherit_namedtuple)
+        self._update_group_path()
+        self._use_dataset = [ndarray]
+        self._use_attrs = [int, str, float]
+
+    def _update_group_path(self):
+        if self._parent is None:
+            if self._name != "root":
+                raise RuntimeError("Top level group should be called root")
+            self._group_path = "/"
+        else:
+            self._group_path = self._parent._group_path + "/" + self._name
+
+    def _set_named_tuple(self, inherit_namedtuple):
+        if inherit_namedtuple:
+            self._named_tuple = self._parent._named_tuple
+        else:
+            try:
+                self._named_tuple = namedtuple(
+                    self._name, ' '.join(self._group_mapping.keys())
+                )
+            except AttributeError:
+                self._named_tuple = None
+
+
+    def _get_item_from_file(self, path, name, objtype):
+        if isinstance(objtype, (Mapping, Sequence)):
+            return self._get_item_group(path, name)
+        elif objtype in self._use_dataset:
+            return objtype(self._get_item_dataset(path, name))
+        else:
+            return objtype(self._get_item_attrs(path, name))
+
+
+    def _set_item_in_file(self, path, name, obj, objtype):
+        if isinstance(objtype, dict):
+            self._set_group_map(path, name, obj)
+        elif isinstance(objtype, list):
+            self._set_multi_group(path, name, obj)
+        elif objtype in self._use_dataset:
+            self._set_item_dataset(path, name, obj)
+        elif objtype in self._use_attrs:
+            self._set_item_attrs(path, name, obj)
+        else:
+            raise TypeError("Type cannot be converted to hdf5 type")
+
+    def _get_item_group(self, path, name):
+        if hasattr(self, "_children"):
+            return self._children[name]
+        else:
+            return self._instances[int(name)]
+
+    def _get_item_dataset(self, path, name):
+        return self._hdf5_file[path + "/" + name]
+
+    def _get_item_attrs(self, path, name):
+        return self._hdf5_file[path].attrs[name]
+
+    def _set_item_dataset(self, path, name, obj):
+        group = self._hdf5_file.require_group(path)
+        group[name] = obj
+
+    def _set_item_attrs(self, path, name, obj):
+        group = self._hdf5_file.require_group(path)
+        group.attrs[name] = obj
+
+    def _set_group_map(self, path, name, obj):
+        child = self[name]
+        if isinstance(obj, child._named_tuple):
+            child.update(**vars(obj))
+        else:
+            raise TypeError("Not a valid definition of {}".format(name))
+
+    def _set_multi_group(self, path, name, obj):
+        child = self[name]
+        if isinstance(obj, Mapping):
+            for key, val in obj.items():
+                child[key] = val
+        elif isinstance(obj, Iterable):
+            for i, item in enumerate(obj):
+                child[i] = item
+        else:
+            raise TypeError("Not a valid definition of {}".format(name))
+
+
+class HDF5GroupMap(MutableMapping, HDF5GroupBase):
+    def __init__(
+        self, group_name, group_mapping, parent=None, hdf5_file=None,
+        inherit_namedtuple=False
+    ):
+        super().__init__(
+            group_name, group_mapping, parent=parent, hdf5_file=hdf5_file,
+            inherit_namedtuple=inherit_namedtuple
+        )
+        self._children = {}
+
+        for name, func in self._group_mapping.items():
+            if isinstance(func, dict):
+                self._children[name] = HDF5GroupMap(name, func, parent=self)
+            elif isinstance(func, list):
+                self._children[name] = HDF5MultiGroup(name, func[0], parent=self)
+
+    def __getattr__(self, name):
+        try:
+            if name in self.__dict__:
+                return self.__dict__[name]
+            elif name in self._group_mapping:
+                return self[name]
+            raise AttributeError(NO_ITEM_IN_GROUP.format(name))
+        except KeyError:
+            raise AttributeError(NO_ITEM_IN_GROUP.format(name))
+
+    def __setattr__(self, name, item):
+        try:
+            if "_group_mapping" not in self.__dict__:
+                self.__dict__[name] = item
+            elif name in self._group_mapping:
+                self[name] = item
+            else:
+                self.__dict__[name] = item
+        except KeyError:
+            raise AttributeError(NO_ITEM_IN_GROUP.format(name))
+
+    def _get_namedtuples_from_subgroups(self):
+        subgroup_namedtuples = [
+            nt
+            for group in self._children.values()
+            for nt in group._get_namedtuples_from_subgroups()
+        ]
+        if self._named_tuple is not None:
+            subgroup_namedtuples.append(self._named_tuple)
+        return subgroup_namedtuples
+
+    def __getitem__(self, name):
+        if name in self._group_mapping:
+            return self._get_item_from_file(
+                self._group_path, name, self._group_mapping[name]
+            )
+        raise KeyError(NO_ITEM_IN_GROUP.format(name))
+
+    def __setitem__(self, name, item):
+        if name in self._group_mapping:
+            self._set_item_in_file(
+                self._group_path, name, item, self._group_mapping[name]
+            )
+        else:
+            raise KeyError(NO_ITEM_IN_GROUP.format(name))
+
+    def __len__(self):
+        return len(self._children)
+
+    def __iter__(self):
+        return iter(self._group_mapping)
+
+    def __delitem__(self, item):
+        raise NotImplemented
+
+class HDF5MultiGroup(MutableSequence, HDF5GroupBase):
+    def __init__(
+        self, group_name, group_mapping, parent=None, hdf5_file=None,
+        inherit_namedtuple=False
+    ):
+        super().__init__(
+            group_name, group_mapping, parent=parent, hdf5_file=hdf5_file,
+            inherit_namedtuple=inherit_namedtuple
+        )
+        self._instances = []
+        self._get_instances()
+
+    def _get_instances(self):
+        group = self._hdf5_file.get(self._group_path)
+        if group is not None:
+            for index in sorted(group):
+                self._create_new_instance(index)
+
+    def _create_new_instance(self, index):
+        def new_instance(self, index):
+            if isinstance(self._group_mapping, dict):
+                self._instances.append(HDF5GroupMap(
+                    str(index), self._group_mapping, parent=self,
+                    inherit_namedtuple=True
+                ))
+            elif isinstance(self._group_mapping, list):
+                self._instances.append(HDF5MultiGroup(
+                    str(index), self._group_mapping[0], parent=self,
+                    inherit_namedtuple=False
+                ))
+            else:
+                raise RuntimeError("Invalid definition of file structure")
+
+        if index >= len(self):
+            new_instance(self, len(self))
+
+        else:
+            for i, instance in reverse(
+                enumerate(self._instances[index:], index + 1)
+            ):
+                new_instance(self, i)
+                self[i] = instance
+            new_instance(self, index)
+
+    def __getitem__(self, index):
+        if valid_index(index, len(self)):
+            return self._get_item_from_file(
+                self._group_path, index, self._group_mapping[index]
+            )
+        raise IndexError("Out of range")
+
+    def __setitem__(self, index, item):
+        if isinstance(index, numbers.Integral):
+            self._set_item_in_file(
+                self._group_path, index, item,
+                self._group_mapping
+            )
+        elif isinstance(index, slice):
+            for i, obj in zip(range(*slice.indices(self._instances)), item):
+                self._set_item_in_file(
+                    self._group_path, i, obj,
+                    self._group_mapping
+                )
+        raise TypeError("Must be integer or slice")
+
+    def __delitem__(self, item):
+        raise NotImplemented
+
+    def __len__(self):
+        return len(self._instances)
+
+    def insert(self, index, item):
+        self._create_new_instance(index)
+        self[index] = item
+
+    def _get_namedtuples_from_subgroups(self):
+        try:
+            subgroup_namedtuples = \
+                self._instances[0]._get_namedtuples_from_subgroups()
+        except IndexError:
+            if isinstance(self._group_mapping, dict):
+                child = HDF5GroupMap(
+                    str(index), self._group_mapping, parent=self,
+                    inherit_namedtuple=True
+                )
+            elif isinstance(self._group_mapping, list):
+                child = HDF5MultiGroup(
+                    str(index), self._group_mapping[0], parent=self,
+                    inherit_namedtuple=False
+                )
+            else:
+                raise RuntimeError("Invalid definition of file structure")
+            subgroup_namedtuples = child._get_namedtuples_from_subgroups()
+        if self._named_tuple is not None:
+            subgroup_namedtuples.append(self._named_tuple)
+        return subgroup_namedtuples
+
+class HDF5FileProxy:
+    def __init__(self):
+        self._file = None
+    def __getitem__(self, name):
+        return self._file[name]
+    def __setitem__(self, name, value):
+        self._file[name] = value
+
+    def get(self, *args, **kwargs):
+        return self._file.get(*args, **kwargs)
+
+    def require_group(self, *args, **kwargs):
+        return self._file.require_group(*args, **kwargs)
 
     @property
-    def version(self):
-        """
-        Solution file version
-        """
-        if self._file_ is None:
-            with h5py.File(self._filename_, **self._kwargs_) as f:
-                return f.attrs.get("version")
-        return self._file_.attrs.get("version")
+    def fileobj(self):
+        return self._file
 
-    @property
-    def name(self):
-        """
-        Name of file on filesystem
-        """
-        return self._filename_
+    @fileobj.setter
+    def fileobj(self, f):
+        self._file
 
-    @property
-    def filetype(self):
-        return self._filetype_
 
-__all__ = ["HDF5Wrapper"]
+def class_list_to_map(class_list):
+    class_map = {}
+    for cls in class_list:
+        name = cls.__name__
+        if name in class_map:
+            if cls._fields == class_list[name]._fields:
+                continue
+            raise RuntimeError("Duplicate names")
+        class_map[name] = cls
+    return class_map
+
+def hdf5_schema_to_class(schema, version, filetype):
+    class HDF5File:
+        def __init__(self, **kwargs):
+            self._file = HDF5FileProxy()
+            self._root_group = HDF5GroupMap(self._file, schema)
+            self._named_tuples = class_list_to_map(
+                self._root_group._get_namedtuples_from_subgroups()
+            )
+
+        @property
+        def fileobj(self):
+            return self._file.fileobj
+
+        @fileobj.setter
+        def fileobj(self, f):
+            self._file.fileobj = f
+            self.fileobj.attrs["version"] = version
+            self.fileobj.attrs["filetype"] = filetype
+
+        @property
+        def root(self):
+            return self._root_group
+
+        @property
+        def named_tuples(self):
+            return self._named_tuples
+
+
+        @property
+        def version(self):
+            """
+            Solution file version
+            """
+            return self.fileobj.attrs.get("version")
+
+        @property
+        def filetype(self):
+            """
+            Solution file version
+            """
+            return self.fileobj.attrs.get("filetype")
 
 from ._version import get_versions
 __version__ = get_versions()['version']
