@@ -323,7 +323,7 @@ def hdf5_schema_to_class(schema, version, filetype):
     class HDF5File:
         def __init__(self, **kwargs):
             self._file = HDF5FileProxy()
-            self._root_group = HDF5GroupMap(self._file, schema)
+            self._root_group = HDF5GroupMap("root", schema, hdf5_file=self._file)
             self._named_tuples = class_list_to_map(
                 self._root_group._get_namedtuples_from_subgroups()
             )
