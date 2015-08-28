@@ -360,6 +360,7 @@ def hdf5_schema_to_class(schema, version, filetype):
             Solution file version
             """
             return self.fileobj.attrs.get("filetype")
+    return HDF5File
 
 from ._version import get_versions
 __version__ = get_versions()['version']
