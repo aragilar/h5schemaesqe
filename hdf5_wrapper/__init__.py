@@ -11,7 +11,8 @@ from numpy import ndarray
 NO_ITEM_IN_GROUP = "No item in group called {}"
 
 def valid_index(index, length):
-    if index >=length:
+    index, length = int(index), int(length)
+    if index >= length:
         return False
     if index < - length:
         return False
@@ -98,14 +99,14 @@ class HDF5GroupBase:
         group.attrs[name] = obj
 
     def _set_group_map(self, path, name, obj):
-        child = self[name]
+        child = self[str(name)]
         if isinstance(obj, child._named_tuple):
             child.update(**vars(obj))
         else:
             raise TypeError("Not a valid definition of {}".format(name))
 
     def _set_multi_group(self, path, name, obj):
-        child = self[name]
+        child = self[str(name)]
         if isinstance(obj, Mapping):
             for key, val in obj.items():
                 child[key] = val
@@ -229,7 +230,7 @@ class HDF5MultiGroup(MutableSequence, HDF5GroupBase):
                 enumerate(self._instances[index:], index + 1)
             ):
                 new_instance(self, i)
-                self[i] = instance
+                self[str(i)] = instance
             new_instance(self, index)
 
     def __getitem__(self, index):
@@ -270,12 +271,12 @@ class HDF5MultiGroup(MutableSequence, HDF5GroupBase):
         except IndexError:
             if isinstance(self._group_mapping, dict):
                 child = HDF5GroupMap(
-                    str(index), self._group_mapping, parent=self,
+                    "invalid", self._group_mapping, parent=self,
                     inherit_namedtuple=True
                 )
             elif isinstance(self._group_mapping, list):
                 child = HDF5MultiGroup(
-                    str(index), self._group_mapping[0], parent=self,
+                    "invalid", self._group_mapping[0], parent=self,
                     inherit_namedtuple=False
                 )
             else:
@@ -293,8 +294,10 @@ class HDF5FileProxy:
     def __setitem__(self, name, value):
         self._file[name] = value
 
-    def get(self, *args, **kwargs):
-        return self._file.get(*args, **kwargs)
+    def get(self, key, default=None):
+        if self._file is None:
+            return default
+        return self._file.get(key, default)
 
     def require_group(self, *args, **kwargs):
         return self._file.require_group(*args, **kwargs)
@@ -305,7 +308,7 @@ class HDF5FileProxy:
 
     @fileobj.setter
     def fileobj(self, f):
-        self._file
+        self._file = f
 
 
 def class_list_to_map(class_list):
@@ -313,7 +316,7 @@ def class_list_to_map(class_list):
     for cls in class_list:
         name = cls.__name__
         if name in class_map:
-            if cls._fields == class_list[name]._fields:
+            if cls._fields == class_map[name]._fields:
                 continue
             raise RuntimeError("Duplicate names")
         class_map[name] = cls
@@ -335,8 +338,8 @@ def hdf5_schema_to_class(schema, version, filetype):
         @fileobj.setter
         def fileobj(self, f):
             self._file.fileobj = f
-            self.fileobj.attrs["version"] = version
-            self.fileobj.attrs["filetype"] = filetype
+            self._file.fileobj.attrs["version"] = version
+            self._file.fileobj.attrs["filetype"] = filetype
 
         @property
         def root(self):
