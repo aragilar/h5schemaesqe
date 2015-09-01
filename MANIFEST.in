@@ -1,2 +1,2 @@
 include versioneer.py
-include hdf5_wrapper/_version.py
+include h5schemaesqe/_version.py

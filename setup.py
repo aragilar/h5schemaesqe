@@ -6,10 +6,10 @@ import versioneer
 #    long_description = f.read()
 
 setuptools.setup(
-    name="hdf5_wrapper",
+    name="h5schemaesqe",
     version=versioneer.get_version(),
-    packages = ["hdf5_wrapper"],
-    install_requires = ["h5py", "numpy"],
+    packages = ["h5schemaesqe"],
+    install_requires = ["h5py"],
     author = "James Tocknell",
     author_email = "aragilar@gmail.com",
     #description = "A bunch of tools for using venvs (and virtualenvs) from python.",

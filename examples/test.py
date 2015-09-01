@@ -1,10 +1,69 @@
 import numpy as np
 
-import hdf5_wrapper
+from h5schemaesqe import HDF5Link, HDF5Group, HDF5MultiGroup, HDF5File
 
-class SolnBase(hdf5_wrapper.HDF5Wrapper, filetype="Soln"):
-    pass
-
-class SolnV1(SolnBase, version="1.0"):
-    a = {"b": int, "c": str}
-    s = np.ndarray
+Test = HDF5Group(
+    initial_input=HDF5Group(
+        start=float,
+        stop=float,
+        taylor_stop_angle=float,
+        max_steps=float,
+        num_angles=float,
+        label=str,
+        relative_tolerance=float,
+        absolute_tolerance=float,
+        β=float,
+        v_rin_on_c_s=float,
+        v_a_on_c_s=float,
+        c_s_on_v_k=float,
+        η_O=float,
+        η_H=float,
+        η_A=float,
+    ),
+    config_filename=str,
+    time=str,
+    solutions=HDF5MultiGroup(
+        "solution", HDF5Group(
+            soln_input=HDF5Group(
+                start=float,
+                stop=float,
+                taylor_stop_angle=float,
+                max_steps=float,
+                num_angles=float,
+                label=str,
+                β=float,
+                v_rin_on_c_s=float,
+                v_a_on_c_s=float,
+                c_s_on_v_k=float,
+                η_O=float,
+                η_H=float,
+                η_A=float,
+            ),
+            angles=np.ndarray,
+            solution=np.ndarray,
+            flag=int,
+            coordinate_system=str,
+            internal_data=HDF5Group(
+                derivs=np.ndarray,
+                params=np.ndarray,
+                angles=np.ndarray,
+                v_r_normal=np.ndarray,
+                v_φ_normal=np.ndarray,
+                ρ_normal=np.ndarray,
+                v_r_taylor=np.ndarray,
+                v_φ_taylor=np.ndarray,
+                ρ_taylor=np.ndarray,
+            ),
+            initial_conditions=HDF5Group(
+                norm_kepler_sq=float,
+                c_s=float,
+                η_O=float,
+                η_A=float,
+                η_H=float,
+                β=float,
+                init_con=np.ndarray,
+                angles=np.ndarray,
+            ),
+        ),
+    ),
+)
