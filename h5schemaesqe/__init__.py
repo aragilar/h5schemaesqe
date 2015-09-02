@@ -376,7 +376,8 @@ class MultiGroupWrapper(BaseGroupWrapper):
     def __setitem__(self, name, item):
         if isinstance(item, self._namedtuple):
             self._children[name] = self._subgroup_cls(
-                name, self._subschema, self._file, parent=self
+                name, self._subschema, self._file, self._namedtuples,
+                parent=self
             )
             self._children[name].update(**vars(item))
         else:
