@@ -331,7 +331,7 @@ class GroupWrapper(BaseGroupWrapper):
         for name, subschema in self._schema.items():
             if isinstance(subschema, BaseHDF5Group):
                 self._children[name] = get_wrapper(subschema)(
-                    name, subschema, file, parent=self
+                    name, subschema, namedtuples, file, parent=self
                 )
 
         self._namedtuple_name = self._name
@@ -367,7 +367,7 @@ class MultiGroupWrapper(BaseGroupWrapper):
 
         for name in self._file[self._path]:
             self._children[name] = self._subgroup_cls(
-                name, self._subschema, file, parent=self
+                name, self._subschema, file, namedtuples, parent=self
             )
 
     def __getitem__(self, name):
