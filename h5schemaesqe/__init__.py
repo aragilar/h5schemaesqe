@@ -365,7 +365,7 @@ class MultiGroupWrapper(BaseGroupWrapper):
         self._subgroup_cls = get_wrapper(self._subschema)
         self._namedtuple = self._namedtuples[self._namedtuple_name]
 
-        for name in self._file[str(self._path)]:
+        for name in self._file.get(str(self._path), []):
             self._children[name] = self._subgroup_cls(
                 name, self._subschema, file, namedtuples, parent=self
             )
