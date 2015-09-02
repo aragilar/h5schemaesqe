@@ -325,7 +325,10 @@ class GroupWrapper(BaseGroupWrapper):
     """
     Wrapper around HDF5 groups matching a schema
     """
-    def __init__(self, name, schema, file, namedtuples, parent=None):
+    def __init__(
+        self, name, schema, file, namedtuples, parent=None,
+        namedtuple_name=None
+    ):
         super().__init__(name, schema, file, namedtuples, parent=parent)
 
         for name, subschema in self._schema.items():
@@ -334,7 +337,7 @@ class GroupWrapper(BaseGroupWrapper):
                     name, subschema, file, namedtuples, parent=self
                 )
 
-        self._namedtuple_name = self._name
+        self._namedtuple_name = namedtuple_name or self._name
         self._namedtuple = self._namedtuples[self._namedtuple_name]
 
     def __getitem__(self, name):
@@ -357,7 +360,10 @@ class MultiGroupWrapper(BaseGroupWrapper):
     """
     Wrapper around HDF5 groups which contain multiple groups matching a schema
     """
-    def __init__(self, name, schema, file, namedtuples, parent=None):
+    def __init__(
+        self, name, schema, file, namedtuples, parent=None,
+        namedtuple_name=None
+    ):
         super().__init__(name, schema, file, namedtuples, parent=parent)
 
         self._namedtuple_name = self._schema._namedtuple_name
@@ -377,7 +383,7 @@ class MultiGroupWrapper(BaseGroupWrapper):
         if isinstance(item, self._namedtuple):
             self._children[name] = self._subgroup_cls(
                 name, self._subschema, self._file, self._namedtuples,
-                parent=self
+                parent=self, namedtuple_name=self._namedtuple_name
             )
             self._children[name].update(**vars(item))
         else:
