@@ -329,9 +329,10 @@ class GroupWrapper(BaseGroupWrapper):
         super().__init__(name, schema, file, namedtuples, parent=parent)
 
         for name, subschema in self._schema.items():
-            self._children[name] = get_wrapper(subschema)(
-                name, subschema, file, parent=self
-            )
+            if isinstance(subschema, BaseHDF5Group):
+                self._children[name] = get_wrapper(subschema)(
+                    name, subschema, file, parent=self
+                )
 
         self._namedtuple_name = self._name
         self._namedtuple = self._namedtuples[self._namedtuple_name]
