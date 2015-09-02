@@ -331,7 +331,7 @@ class GroupWrapper(BaseGroupWrapper):
         for name, subschema in self._schema.items():
             if isinstance(subschema, BaseHDF5Group):
                 self._children[name] = get_wrapper(subschema)(
-                    name, subschema, namedtuples, file, parent=self
+                    name, subschema, file, namedtuples, parent=self
                 )
 
         self._namedtuple_name = self._name
