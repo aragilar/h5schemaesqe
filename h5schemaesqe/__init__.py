@@ -10,8 +10,6 @@ from collections.abc import (
 
 from pathlib import PurePosixPath
 
-import h5py
-
 NO_ITEM_IN_GROUP = "No item in group called {}"
 
 
@@ -111,42 +109,19 @@ class HDF5File:
     """
     Wrapper around h5py.File to use schemas
     """
-    def __init__(
-        self, schema, namedtuples, fileobj=None, filename=None, mode="r"
-    ):
-        if fileobj is None and filename is None:
-            raise RuntimeError("Need a file object or file name")
-
+    def __init__(self, schema, namedtuples, file):
         self._schema = schema
         self._namedtuples = namedtuples
         self._namedtuples_dict = vars(self._namedtuples)
         self._root = None
-
-        if fileobj:
-            if filename:
-                raise RuntimeError("Cannot define fileobj and filename")
-            self._fileobj = fileobj
-            self._filename = fileobj.filename
-            self._map_file()
-        elif filename:
-            self._filename = filename
-            self._fileobj = None
-            self._mode = mode
-
-    def __enter__(self):
-        self._fileobj = h5py.File(self._filename, mode=self._mode).__enter__
-        self._map_file()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        return self._fileobj.__exit__(exc_type, exc_value, traceback)
+        self._file = file
 
     @property
     def file(self):
         """
         The actual h5py file object
         """
-        return self._fileobj
+        return self._file
 
     @property
     def namedtuples(self):
@@ -179,7 +154,7 @@ class HDF5File:
         Create wrappers around file
         """
         self._root = get_wrapper(self._schema)(
-            "root", self._schema, self._fileobj
+            "root", self._schema, self._file, self._namedtuples_dict
         )
 
 
