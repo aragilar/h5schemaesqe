@@ -112,9 +112,13 @@ class HDF5File:
     def __init__(self, schema, namedtuples, file):
         self._schema = schema
         self._namedtuples = namedtuples
-        self._namedtuples_dict = vars(self._namedtuples)
-        self._root = None
         self._file = file
+
+        self._namedtuples_dict = vars(self._namedtuples)
+
+        self._root = get_wrapper(self._schema)(
+            "root", self._schema, self._file, self._namedtuples_dict
+        )
 
     @property
     def file(self):
@@ -135,8 +139,6 @@ class HDF5File:
         """
         The root group
         """
-        if self._root is None:
-            raise RuntimeError("Need to open file before reading")
         return self._root
 
     @root.setter
@@ -148,14 +150,6 @@ class HDF5File:
             self._root.update(**vars(item))
         else:
             raise TypeError("Not a valid object")
-
-    def _map_file(self):
-        """
-        Create wrappers around file
-        """
-        self._root = get_wrapper(self._schema)(
-            "root", self._schema, self._file, self._namedtuples_dict
-        )
 
 
 class HDF5Path(PurePosixPath):
