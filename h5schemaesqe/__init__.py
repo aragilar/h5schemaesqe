@@ -268,14 +268,14 @@ class BaseGroupWrapper(MutableMapping):
         """
         Set dataset
         """
-        group = self._file.require_group(path)
+        group = self._file.require_group(str(path))
         group[name] = obj
 
     def _set_attr(self, path, name, obj):
         """
         Set attribute
         """
-        group = self._file.require_group(path)
+        group = self._file.require_group(str(path))
         group.attrs[name] = obj
 
     def _set_group(self, path, name, obj):
