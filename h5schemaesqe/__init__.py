@@ -25,7 +25,7 @@ def add_attrs(*names):
             if name in names:
                 self.__dict__[name] = item
             used_map_names = [
-                self.__dict__.get(map_name) for map_name in names
+                map_name for map_name in names
                 if self.__dict__.get(map_name) is not None
             ]
 
