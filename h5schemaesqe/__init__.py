@@ -24,9 +24,15 @@ def add_attrs(*names):
         def setattr_func(self, name, item):
             if name in names:
                 self.__dict__[name] = item
-            for map_name in names:
+            used_map_names = [
+                self.__dict__.get(map_name) for map_name in names
+                if self.__dict__.get(map_name) is not None
+            ]
+
+            for map_name in used_map_names:
                 if name in self.__dict__[map_name]:
                     self.__dict__[map_name][name] = item
+                    break
             else:
                 self.__dict__[name] = item
 
