@@ -31,6 +31,10 @@ def add_attrs(*names):
         cls.__getattr__ = getattr_func
         cls.__setattr__ = setattr_func
 
+        return class
+
+    return wrapper
+
 
 def get_wrapper(schema):
     """
