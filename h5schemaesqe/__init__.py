@@ -22,6 +22,8 @@ def add_attrs(*names):
             raise AttributeError("No such attribute {}".format(name))
 
         def setattr_func(self, name, item):
+            if name in names:
+                self.__dict__[name] = item
             for map_name in names:
                 if name in self.__dict__[map_name]:
                     self.__dict__[map_name][name] = item
