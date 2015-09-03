@@ -13,6 +13,25 @@ from pathlib import PurePosixPath
 NO_ITEM_IN_GROUP = "No item in group called {}"
 
 
+def add_attrs(*names):
+    def wrapper(cls):
+        def getattr_func(self, name):
+            for map_name in names:
+                if name in self.__dict__[map_name]:
+                    return self.__dict__[map_name][name]
+            raise AttributeError("No such attribute {}".format(name))
+
+        def setattr_func(self, name, item):
+            for map_name in names:
+                if name in self.__dict__[map_name]:
+                    self.__dict__[map_name][name] = item
+            else:
+                self.__dict__[name] = item
+
+        cls.__getattr__ = getattr_func
+        cls.__setattr__ = setattr_func
+
+
 def get_wrapper(schema):
     """
     Get correct group class based on schema.
@@ -171,6 +190,7 @@ class HDF5Path(PurePosixPath):
         return "/" + "/".join(self.parts)
 
 
+@add_attrs("_schema")
 class BaseGroupWrapper(MutableMapping):
     """
     Base class for wrappers around HDF5 groups
