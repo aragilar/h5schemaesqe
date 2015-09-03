@@ -18,7 +18,7 @@ def add_attrs(*names):
         def getattr_func(self, name):
             for map_name in names:
                 if name in self.__dict__[map_name]:
-                    return self.__dict__[map_name][name]
+                    return self.__getitem__(name)
             raise AttributeError("No such attribute {}".format(name))
 
         def setattr_func(self, name, item):
@@ -31,7 +31,7 @@ def add_attrs(*names):
 
             for map_name in used_map_names:
                 if name in self.__dict__[map_name]:
-                    self.__dict__[map_name][name] = item
+                    self.__setitem__(name, item)
                     break
             else:
                 self.__dict__[name] = item
