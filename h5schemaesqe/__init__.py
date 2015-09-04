@@ -405,7 +405,8 @@ class MultiGroupWrapper(BaseGroupWrapper):
 
         for name in self._file.get(str(self._path), []):
             self._children[name] = self._subgroup_cls(
-                name, self._subschema, file, namedtuples, parent=self
+                name, self._subschema, file, namedtuples, parent=self,
+                namedtuple_name=self._namedtuple_name
             )
 
     def __getitem__(self, name):
