@@ -273,7 +273,7 @@ class BaseGroupWrapper(MutableMapping):
         Get wrapper around link
         """
         link_path = HDF5Path(path, name)
-        actual_path = HDF5Path(self._file[link_path].name)
+        actual_path = HDF5Path(self._file[str(link_path)].name)
         common_path = link_path.shared_path(actual_path)
         ancestor = self._get_ancestor(common_path)
         return ancestor._get_descendant(actual_path)
