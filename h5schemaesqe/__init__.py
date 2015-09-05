@@ -56,6 +56,9 @@ def get_wrapper(schema):
         TypeError("Invalid schema type")
 
 
+def resolve_link(group, link_name):
+    return group.id.links.getval(link_name.encode("utf-8"))
+
 class BaseHDF5Object:
     """
     Base class for schema components
@@ -273,7 +276,7 @@ class BaseGroupWrapper(MutableMapping):
         Get wrapper around link
         """
         link_path = HDF5Path(path, name)
-        actual_path = HDF5Path(self._file[str(link_path)].name)
+        actual_path = HDF5Path(resolve_link(self._file[str(path)],name))
         common_path = link_path.shared_path(actual_path)
         ancestor = self._get_ancestor(common_path)
         return ancestor._get_descendant(actual_path)
