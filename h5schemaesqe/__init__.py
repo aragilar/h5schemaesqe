@@ -196,7 +196,7 @@ class HDF5Path(PurePosixPath):
             if self_part != other_part:
                 break
             path.append(self_part)
-        return HDF5Path(path)
+        return HDF5Path(*path)
 
     def __str__(self):
         return "/" + "/".join(self.parts)
