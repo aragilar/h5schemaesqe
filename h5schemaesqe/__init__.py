@@ -10,6 +10,8 @@ from collections.abc import (
 
 from pathlib import PurePosixPath
 
+from h5py import SoftLink
+
 NO_ITEM_IN_GROUP = "No item in group called {}"
 
 
@@ -342,7 +344,7 @@ class BaseGroupWrapper(MutableMapping):
         Set link
         """
         if isinstance(obj, BaseHDF5Group):
-            self._file[str(HDF5Path(path, name))] = self._file[str(obj._path)]
+            self._file[str(HDF5Path(path, name))] = SoftLink(str(obj._path))
         else:
             raise TypeError("Not a valid definition of {}".format(name))
 
