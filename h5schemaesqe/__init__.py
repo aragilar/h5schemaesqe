@@ -345,7 +345,7 @@ class BaseGroupWrapper(MutableMapping):
 
         name is the symlink path, obj is the obj we want to link to
         """
-        if isinstance(obj, BaseHDF5Group):
+        if isinstance(obj, BaseGroupWrapper):
             self._file[str(obj._path)] = SoftLink(str(HDF5Path(path, name)))
         else:
             raise TypeError("Not a valid definition of {}".format(name))
