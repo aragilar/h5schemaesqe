@@ -59,7 +59,7 @@ def get_wrapper(schema):
 
 
 def resolve_link(group, link_name):
-    return group.id.links.getval(link_name.encode("utf-8"))
+    return group.id.links.get_val(link_name.encode("utf-8"))
 
 class BaseHDF5Object:
     """
