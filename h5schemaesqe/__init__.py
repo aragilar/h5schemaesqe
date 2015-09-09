@@ -3,6 +3,7 @@ Wrapper around h5py/hdf5 to provide a schema-like definition of groups and
 datasets
 """
 
+from abc import abstractmethod
 from collections import namedtuple
 from collections.abc import (
     MutableMapping, Iterable, Mapping
@@ -16,14 +17,26 @@ NO_ITEM_IN_GROUP = "No item in group called {}"
 
 
 def add_attrs(*names):
+    """
+    Add getattr and setattr to class
+    """
     def wrapper(cls):
+        """
+        Class wrapper
+        """
         def getattr_func(self, name):
+            """
+            getter
+            """
             for map_name in names:
                 if name in self.__dict__[map_name]:
                     return self.__getitem__(name)
             raise AttributeError("No such attribute {}".format(name))
 
         def setattr_func(self, name, item):
+            """
+            setter
+            """
             if name in names:
                 self.__dict__[name] = item
             used_map_names = [
@@ -59,6 +72,9 @@ def get_wrapper(schema):
 
 
 def resolve_link(group, link_name):
+    """
+    Resolve HDF5 link
+    """
     return group.id.links.get_val(link_name.encode("utf-8")).decode("utf-8")
 
 
@@ -66,6 +82,7 @@ class BaseHDF5Object:
     """
     Base class for schema components
     """
+    # pylint: disable=too-few-public-methods
     pass
 
 
@@ -130,6 +147,7 @@ class HDF5Link(BaseHDF5Object):
     """
     Schema representation of a HDF5 link
     """
+    # pylint: disable=too-few-public-methods
     pass
 
 
@@ -137,6 +155,7 @@ class NamedtupleNamespace:
     """
     Create a namespace containing the namedtuples from a schema
     """
+    # pylint: disable=too-few-public-methods
     def __init__(self, schema):
         for nt in schema.generate_namedtuples("root"):
             self.__dict__[nt.__name__] = nt
@@ -213,7 +232,9 @@ class BaseGroupWrapper(MutableMapping):
     """
     Base class for wrappers around HDF5 groups
     """
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, name, schema, file, namedtuples, parent=None):
+        # pylint: disable=protected-access
 
         self._name = name
         self._parent = parent
@@ -256,7 +277,7 @@ class BaseGroupWrapper(MutableMapping):
         else:
             self._set_dataset(path, name, obj)
 
-    def _get_group(self, path, name):
+    def _get_group(self, path, name):  # pylint: disable=unused-argument
         """
         Get wrapper around group based on file contents
         """
@@ -278,6 +299,7 @@ class BaseGroupWrapper(MutableMapping):
         """
         Get wrapper around link
         """
+        # pylint: disable=protected-access
         link_path = HDF5Path(path, name)
         actual_path = HDF5Path(resolve_link(self._file[str(path)], name))
         common_path = link_path.shared_path(actual_path)
@@ -288,6 +310,7 @@ class BaseGroupWrapper(MutableMapping):
         """
         Find ancestor based on path
         """
+        # pylint: disable=protected-access
         if self._path == path:
             return self
         elif self._parent is None:
@@ -298,6 +321,7 @@ class BaseGroupWrapper(MutableMapping):
         """
         Find descendant based on path
         """
+        # pylint: disable=protected-access
         if self._path == path:
             return self
         return self[path.parts[len(self._path.parts)]]._get_descendant(path)
@@ -316,17 +340,20 @@ class BaseGroupWrapper(MutableMapping):
         group = self._file.require_group(str(path))
         group.attrs[name] = obj
 
-    def _set_group(self, path, name, obj):
+    def _set_group(self, path, name, obj):  # pylint: disable=unused-argument
         """
         Set group
         """
+        # pylint: disable=protected-access
         child = self[str(name)]
         if isinstance(obj, child._namedtuple):
             child.update(**vars(obj))
         else:
             raise TypeError("Not a valid definition of {}".format(name))
 
-    def _set_multi_group(self, path, name, obj):
+    def _set_multi_group(
+        self, path, name, obj
+    ):  # pylint: disable=unused-argument
         """
         Set multi group
         """
@@ -346,6 +373,7 @@ class BaseGroupWrapper(MutableMapping):
 
         name is the symlink path, obj is the obj we want to link to
         """
+        # pylint: disable=protected-access
         if isinstance(obj, BaseGroupWrapper):
             self._file[str(HDF5Path(path, name))] = SoftLink(str(obj._path))
         else:
@@ -361,7 +389,18 @@ class BaseGroupWrapper(MutableMapping):
         raise NotImplementedError("Need to create this method")
 
     @property
+    @abstractmethod
+    def namedtuple(self):
+        """
+        Return namedtuple with data from HDF5 file
+        """
+        raise NotImplementedError
+
+    @property
     def nt(self):
+        """
+        Return namedtuple with data from HDF5 file
+        """
         return self.namedtuple
 
 
@@ -417,7 +456,8 @@ class MultiGroupWrapper(BaseGroupWrapper):
     def __init__(
         self, name, schema, file, namedtuples, parent=None,
         namedtuple_name=None
-    ):
+    ):  # pylint: disable=unused-argument
+        # pylint: disable=protected-access
         super().__init__(name, schema, file, namedtuples, parent=parent)
 
         self._namedtuple_name = self._schema._namedtuple_name
