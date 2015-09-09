@@ -9,7 +9,7 @@ setuptools.setup(
     name="h5schemaesqe",
     version=versioneer.get_version(),
     packages = ["h5schemaesqe"],
-    install_requires = [],
+    install_requires = ["h5py"],
     author = "James Tocknell",
     author_email = "aragilar@gmail.com",
     #description = "A bunch of tools for using venvs (and virtualenvs) from python.",

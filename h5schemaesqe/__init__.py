@@ -61,6 +61,7 @@ def get_wrapper(schema):
 def resolve_link(group, link_name):
     return group.id.links.get_val(link_name.encode("utf-8")).decode("utf-8")
 
+
 class BaseHDF5Object:
     """
     Base class for schema components
@@ -278,7 +279,7 @@ class BaseGroupWrapper(MutableMapping):
         Get wrapper around link
         """
         link_path = HDF5Path(path, name)
-        actual_path = HDF5Path(resolve_link(self._file[str(path)],name))
+        actual_path = HDF5Path(resolve_link(self._file[str(path)], name))
         common_path = link_path.shared_path(actual_path)
         ancestor = self._get_ancestor(common_path)
         return ancestor._get_descendant(actual_path)
@@ -359,6 +360,10 @@ class BaseGroupWrapper(MutableMapping):
     def __delitem__(self, item):
         raise NotImplementedError("Need to create this method")
 
+    @property
+    def nt(self):
+        return self.namedtuple
+
 
 class GroupWrapper(BaseGroupWrapper):
     """
@@ -394,6 +399,16 @@ class GroupWrapper(BaseGroupWrapper):
         else:
             raise KeyError(NO_ITEM_IN_GROUP.format(name))
 
+    @property
+    def namedtuple(self):
+        nt_dict = {}
+        for name in self._schema:
+            if name in self._children:
+                nt_dict[name] = self._children[name].namedtuple
+            else:
+                nt_dict[name] = self[name]
+        return self._namedtuple(**nt_dict)
+
 
 class MultiGroupWrapper(BaseGroupWrapper):
     """
@@ -428,6 +443,10 @@ class MultiGroupWrapper(BaseGroupWrapper):
             self._children[name].update(**vars(item))
         else:
             raise TypeError("Not a valid object")
+
+    @property
+    def namedtuple(self):
+        return [child.namedtuple for child in self._children]
 
 
 __all__ = [
