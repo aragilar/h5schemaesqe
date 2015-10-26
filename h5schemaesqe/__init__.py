@@ -13,6 +13,8 @@ from pathlib import PurePosixPath
 
 from h5py import SoftLink
 
+from .utils import allvars as vars
+
 NO_ITEM_IN_GROUP = "No item in group called {}"
 
 
